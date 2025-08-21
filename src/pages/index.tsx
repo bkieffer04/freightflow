@@ -8,7 +8,7 @@ export const getServerSideProps: GetServerSideProps = async ({ req, res }) => {
 
   return {
     redirect: session
-      ? { destination: "/settings", permanent: false }
+      ? { destination: "/home", permanent: false }
       : { destination: "/login", permanent: false },
   };
 };
