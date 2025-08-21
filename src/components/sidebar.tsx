@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { Home, Settings } from "lucide-react";
+import { Home, Settings, Files } from "lucide-react";
 import clsx from "clsx";
 
 export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
@@ -23,7 +23,8 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <nav className="space-y-1">
       {item("/home", "Home", Home)}
-      {item("/settings", "Settings", Settings)}
+        {item("/settings", "Settings", Settings)}
+          {item("/documents", "Documents", Files)}
     </nav>
   );
 }
