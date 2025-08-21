@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useRouter } from "next/router";
 import { supabaseBrowser } from "@/lib/supabase/browser";
+import { Eye, EyeOff } from "lucide-react";
 
 type Mode = "login" | "signup";
 
@@ -12,6 +13,8 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [showPw, setShowPw] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -27,18 +30,26 @@ export default function Login() {
     setLoading(true);
     try {
       if (mode === "login") {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        router.push("/settings"); // success
+
+        // sync tokens to httpOnly cookies for SSR (if you added /api/auth/set)
+        if (data.session) {
+          await fetch("/api/auth/set", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              access_token: data.session.access_token,
+              refresh_token: data.session.refresh_token,
+            }),
+          });
+        }
+        window.location.assign("/home");
       } else {
         const { data, error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
-        // If email confirmations are enabled, there's no session yet:
-        if (!data.session) {
-          setMsg("Check your email to confirm your account.");
-        } else {
-          router.push("/settings");
-        }
+        if (!data.session) setMsg("Check your email to confirm your account.");
+        else window.location.assign("/home");
       }
     } catch (e: any) {
       setErr(e.message ?? "Something went wrong");
@@ -61,9 +72,7 @@ export default function Login() {
             role="tab"
             aria-selected={mode === "login"}
             onClick={() => setMode("login")}
-            className={`py-2 text-center font-medium transition ${
-              mode === "login" ? "bg-black text-white" : "bg-white text-black"
-            }`}
+            className={`py-2 text-center font-medium transition ${mode === "login" ? "bg-black text-white" : "bg-white text-black"}`}
           >
             Log in
           </button>
@@ -71,19 +80,18 @@ export default function Login() {
             role="tab"
             aria-selected={mode === "signup"}
             onClick={() => setMode("signup")}
-            className={`py-2 text-center font-medium transition ${
-              mode === "signup" ? "bg-black text-white" : "bg-white text-black"
-            }`}
+            className={`py-2 text-center font-medium transition ${mode === "signup" ? "bg-black text-white" : "bg-white text-black"}`}
           >
             Sign up
           </button>
         </div>
 
-        {/* Form */}
         <form onSubmit={onSubmit} className="flex flex-col gap-3">
           <label className="text-sm text-black">Email</label>
           <input
             type="email"
+            name="email"
+            autoComplete="email"
             className="rounded border border-black p-2 focus:outline-none focus:ring-2 focus:ring-black"
             placeholder="Enter your email"
             value={email}
@@ -92,26 +100,52 @@ export default function Login() {
           />
 
           <label className="text-sm text-black">Password</label>
-          <input
-            type="password"
-            className="rounded border border-black p-2 focus:outline-none focus:ring-2 focus:ring-black text-black"
-            placeholder="Enter your password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
+          <div className="relative">
+            <input
+              type={showPw ? "text" : "password"}
+              name="password"
+              autoComplete={mode === "login" ? "current-password" : "new-password"}
+              className="w-full rounded border border-black p-2 pr-10 focus:outline-none focus:ring-2 focus:ring-black"
+              placeholder="Enter your password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+            <button
+              type="button"
+              aria-label={showPw ? "Hide password" : "Show password"}
+              aria-pressed={showPw}
+              onClick={() => setShowPw((v) => !v)}
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 hover:bg-black/5"
+            >
+              {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
 
           {mode === "signup" && (
             <>
               <label className="text-sm text-black">Confirm password</label>
-              <input
-                type="password"
-                className="rounded border border-black p-2 focus:outline-none focus:ring-2 focus:ring-black text-black"
-                placeholder="Re-enter your password"
-                value={confirm}
-                onChange={(e) => setConfirm(e.target.value)}
-                required
-              />
+              <div className="relative">
+                <input
+                  type={showConfirm ? "text" : "password"}
+                  name="confirm-password"
+                  autoComplete="new-password"
+                  className="w-full rounded border border-black p-2 pr-10 focus:outline-none focus:ring-2 focus:ring-black"
+                  placeholder="Re-enter your password"
+                  value={confirm}
+                  onChange={(e) => setConfirm(e.target.value)}
+                  required
+                />
+                <button
+                  type="button"
+                  aria-label={showConfirm ? "Hide confirm password" : "Show confirm password"}
+                  aria-pressed={showConfirm}
+                  onClick={() => setShowConfirm((v) => !v)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 hover:bg-black/5"
+                >
+                  {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
             </>
           )}
 
@@ -134,22 +168,22 @@ export default function Login() {
           <div className="h-px bg-black/20 flex-1" />
         </div>
 
-        {/* OAuth */}
+        {/* Google OAuth */}
         <button
-          className="w-full rounded border border-black px-4 py-2 text-black hover:bg-black hover:text-white transition"
-          // pages/login.tsx (excerpt)
-onClick={() =>
-    supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}/api/auth/callback?next=/home`,
-        // If you need Google API access later, request refresh token:
-        // queryParams: { access_type: "offline", prompt: "consent" }
-      },
-    })
-  }
-  
+          type="button"
+          className="w-full rounded border border-black px-4 py-2 text-black hover:bg-black hover:text-white transition flex items-center justify-center gap-2"
+          onClick={() =>
+            supabase.auth.signInWithOAuth({
+              provider: "google",
+              options: { redirectTo: `${window.location.origin}/api/auth/callback?next=/home` },
+            })
+          }
         >
+          <img
+            src="https://pngimg.com/uploads/google/google_PNG19635.png"
+            alt="Google logo"
+            className="h-5 w-5"
+          />
           Continue with Google
         </button>
       </div>
